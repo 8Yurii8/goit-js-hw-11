@@ -5,8 +5,8 @@ import Notiflix from 'notiflix';
 import SimpleLightbox from 'simplelightbox';
 import 'simplelightbox/dist/simple-lightbox.min.css';
 // Імпорт ліби
+let startPage = 1;
 
-let startPage = 0;
 // пошук елементів
 const inputHandleText = document.querySelector(
   'form#search-form input[name="searchQuery"]'
@@ -18,11 +18,11 @@ const PhotoList = document.querySelector('.gallery');
 const sentinal = document.querySelector('#sentinal');
 // пошук елементів
 // пошук картинок
-async function search(query) {
-  startPage += 1;
+async function search(query, startPage) {
   PhotoList.innerHTML = '';
+  startPage = 1;
   try {
-    const data = await getPhotos(query);
+    const data = await getPhotos(query, startPage);
 
     if (data.hits.length === 0) {
       Notiflix.Notify.failure(
@@ -30,7 +30,7 @@ async function search(query) {
       );
       return;
     }
-    Notiflix.Notify.success(`Hooray! We found ${data.hits.length} images.`);
+    Notiflix.Notify.success(`Hooray! We found ${data.totalHits} images.`);
     const galleryMarkup = createGalleryList(data.hits);
     PhotoList.insertAdjacentHTML('beforeend', galleryMarkup);
     gallery = createGallery();
@@ -42,6 +42,8 @@ async function search(query) {
 // пошук картинок
 // додаємо картинки
 handleButtonSerch.addEventListener('click', async event => {
+  startPage = 1;
+  console.log(startPage);
   event.preventDefault();
   const query = inputHandleText.value.trim();
   if (query !== '') {
@@ -101,36 +103,44 @@ function createGallery() {
   });
 }
 
-let currentPage = 1;
 let gallery;
-// додаємо більше картинок при скролі
+
+// Функція для перевірки, чи елемент з'явився на екрані
+const checkIntersection = entry => {
+  if (entry.isIntersecting && inputHandleText.value.trim() !== '') {
+    return true;
+  }
+  return false;
+};
+
 const onEntry = async entries => {
   entries.forEach(async entry => {
-    if (startPage === 0) {
-      return;
-    }
-    if (entry.isIntersecting) {
-      currentPage += 1;
+    const currentQuery = inputHandleText.value.trim();
+    console.dir(currentQuery);
+    if (checkIntersection(entry)) {
+      startPage += 1;
       try {
-        const data = await getPhotos(inputHandleText.value.trim(), currentPage);
+        const data = await getPhotos(inputHandleText.value.trim(), startPage);
 
         // Вставте нові фотографії до списку
         PhotoList.insertAdjacentHTML('beforeend', createGalleryList(data.hits));
+        // Вставте нові фотографії до списку
+
         // Перевіряємо, чи є об'єкт галереї (він буде визначений тільки після першого завантаження)
         if (!gallery) {
           // Якщо об'єкт галереї ще не створений, створюємо його
           gallery = createGallery();
         } else {
           // Інакше оновлюємо галерею
-          if (data.hits.length !== 0) {
-            Notiflix.Notify.success(
-              `Hooray! We found ${data.hits.length} images.`
-            );
-          }
           gallery.refresh();
         }
       } catch (error) {
         console.error(error);
+      }
+      // Відписуємося від спостереження
+      if (inputHandleText.value.trim() !== currentQuery) {
+        startPage = 1;
+        observer.unobserve(sentinal);
       }
     }
   });
